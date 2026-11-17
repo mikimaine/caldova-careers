@@ -9,7 +9,8 @@ const jobs = defineCollection({
     loader: glob({ pattern: '**/*.md', base: './src/content/jobs' }),
     schema: z.object({
         title: z.string(),
-        department: z.string(),
+        // Trimmed so filter options and card `data-department` values match.
+        department: z.string().trim(),
         location: z.string(),
         // Employment type shown as a facet and on the detail page.
         type: z.enum(['Full-time', 'Part-time', 'Contract']),
