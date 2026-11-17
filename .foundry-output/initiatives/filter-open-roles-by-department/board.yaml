@@ -1,0 +1,8 @@
+schemaVersion: 1
+initiativeId: init_01a1eb3e-2e46-7e3e-a298-73af2cd2d880
+title: Filter open roles by department
+entries:
+  - key: "1"
+    storyId: "1"
+    status: ready-for-dev
+    updatedAt: 2026-11-17T21:36:14.504Z
