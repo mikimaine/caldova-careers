@@ -38,8 +38,33 @@ None: the Initiative has no UX Document.
 
 ### FR Coverage Map
 
-Designed in step 2
+FR-1: Epic 1 - Department filter offers the Departments (Story 1)
+FR-2: Epic 1 - Narrow the listing to one Department (Story 1)
+FR-3: Epic 1 - State how many roles are shown (Story 1)
+FR-4: Epic 1 - Reflect the choice in the address (Story 1.2)
+FR-5: Epic 1 - Open a Filtered view from its address (Story 1.2)
+NFR-1 to NFR-4: Epic 1 - Story 1, kept green by Story 1.2
 
 ## Epic List
 
-Designed in step 2
+### Epic 1: Find open roles by department
+A visitor can narrow the Open roles listing to one Department, see how many roles match, and share or reopen that Filtered view from its address. One epic because every requirement changes `src/pages/index.astro` and its one inline script.
+**FRs covered:** FR-1, FR-2, FR-3, FR-4, FR-5
+
+## Epic 1: Find open roles by department
+
+A visitor can narrow the Open roles listing to one Department, see how many roles match, and share or reopen that Filtered view from its address.
+
+### Story 1: Filter the open roles listing by department
+
+Key `1`: this Story was created in the Small plan before the epic existed and keeps its key; it is the epic's first Story.
+
+**Covers:** FR-1, FR-2, FR-3, NFR-1, NFR-2, NFR-3, NFR-4; binds AD-1, AD-2, AD-3, AD-4, AD-5
+
+**Depends on:** none
+
+### Story 1.2: Share and reopen a filtered view of open roles
+
+**Covers:** FR-4, FR-5; binds AD-3, AD-4
+
+**Depends on:** 1
