@@ -1,6 +1,6 @@
 ---
 title: Filter open roles by department
-status: draft
+status: final
 created: 2026-11-17
 updated: 2026-11-17
 ---
@@ -34,8 +34,9 @@ A department filter lets a visitor say "show me Finance" and see only those role
 
 - **Open roles listing** — the page at `/` that shows every Posting as a Role card, newest first.
 - **Posting** — one open role, defined by one Markdown file in the jobs content collection. Each Posting has exactly one Department.
+- **Open role** — the visitor-facing name for a Posting, used in page text ("2 open roles in Finance").
 - **Role card** — a Posting's summary card in the Open roles listing, linking to its detail page.
-- **Department** — the `department` value of a Posting's front matter, compared as an exact string. The set of Departments is the set of distinct values across current Postings.
+- **Department** — the `department` value of a Posting's front matter, with surrounding whitespace trimmed and compared as an exact, case-sensitive string; spelling Departments consistently is the content author's job. The set of Departments is the set of distinct values across current Postings.
 - **Department filter** — the control on the Open roles listing that selects one Department or All departments.
 - **All departments** — the Department filter's default choice: no narrowing.
 - **Filtered view** — the Open roles listing narrowed to one Department, identified by its address.
@@ -54,7 +55,7 @@ A visitor can see a Department filter listing All departments and every Departme
 
 **Consequences (testable):**
 - The options are All departments, then each Department exactly once, in alphabetical order.
-- A Department appears iff at least one Posting has it; adding or removing a Posting file changes the options at the next build with no other edit.
+- A Department appears if and only if at least one Posting has it; adding or removing a Posting file changes the options at the next build with no other edit.
 - All departments is selected when the page loads with no Department in its address.
 - When there are no Postings, the existing empty state shows and no Department filter is rendered.
 
@@ -73,7 +74,7 @@ A visitor can choose a Department and see only that Department's Role cards. Rea
 A visitor can tell how many roles match the current choice, including with a screen reader. Realizes UJ-1.
 
 **Consequences (testable):**
-- A visible line states the count and the Department, e.g. "2 open roles in Finance", or the total for All departments, e.g. "14 open roles".
+- A visible line states the count and the Department, e.g. "2 open roles in Finance" or "1 open role in Sales", or the total for All departments, e.g. "14 open roles". The noun is singular for a count of one.
 - The line is a polite live region, so the new count is announced after each change without moving focus.
 
 **Feature-specific NFRs:**
@@ -102,11 +103,13 @@ A visitor who opens an address with a `department` query parameter lands on that
 - An address naming a current Department opens with that Department selected and only its Role cards visible.
 - An address naming no current Department (misspelt, or its last Posting removed) opens with All departments selected and every Role card visible.
 - Matching is exact and case-sensitive. `[ASSUMPTION]`
+- The address decides the choice on every load, including reload and Back/Forward: the Department filter always shows the same choice as the visible Role cards, whatever value the browser restores into the control.
+- Non-matching Role cards are hidden before the listing is first painted; they do not flash visible and then disappear.
 
 ## 5. Cross-Cutting NFRs
 
 - **Static site kept:** the Open roles listing stays prerendered; filtering happens in the browser on the cards already on the page. No server endpoint, database table or new runtime dependency is added.
-- **Works without JavaScript:** with scripts disabled or failed, every Role card is visible as today. `[ASSUMPTION]` Whether the Department filter is hidden or shown inert in that case is left to the architecture.
+- **Works without JavaScript:** with scripts disabled or failed, the listing is exactly today's: every Role card visible, and neither the Department filter nor the count line shown. `[ASSUMPTION]`
 - **Existing checks stay green:** lint, typecheck, build, unit and end-to-end suites, including the existing listing tests.
 
 ## 6. Non-Goals (Explicit)
@@ -136,7 +139,7 @@ The site has no analytics, so success is judged by acceptance, not measurement. 
 
 - **SM-1:** Every FR's consequences are covered by an automated test that passes in CI. Validates FR-1 to FR-5.
 - **SM-2:** The existing axe accessibility test passes with the Department filter present. Validates FR-1, FR-3.
-- **SM-C1 (counter-metric):** Do not add filter options or controls beyond Department to make the page "richer"; one control that works for keyboard and screen-reader users beats several that do not. Counterbalances SM-1.
+- **SM-C1 (counter-metric):** Do not make the tests pass by giving up the static, dependency-free listing (an on-demand page, a server filter endpoint, a UI library). Counterbalances SM-1.
 
 ## 9. Open Questions
 
@@ -148,6 +151,6 @@ The site has no analytics, so success is judged by acceptance, not measurement. 
 - §2.2 UJ-1, UJ-2 — personas and journeys inferred from the request and the site, not narrated by a user.
 - §4.2 FR-4 — changing the choice replaces the history entry instead of adding one.
 - §4.2 FR-5 — Department matching in the address is exact and case-sensitive.
-- §5 — without JavaScript every Role card stays visible.
+- §5 — without JavaScript the listing is exactly today's, with no Department filter or count line.
 - §7.2 — "← All open roles" keeps going to the full listing.
 - §8 — success is judged by passing tests, as the site has no analytics.
