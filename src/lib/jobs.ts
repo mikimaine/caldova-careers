@@ -15,6 +15,16 @@ export function sortByNewest(jobs: Job[]): Job[] {
 }
 
 /**
+ * Return every Department among the jobs exactly once, in alphabetical order
+ * (does not mutate input).
+ */
+export function listDepartments(jobs: Job[]): string[] {
+    return [...new Set(jobs.map((job) => job.department))].sort((a, b) =>
+        a.localeCompare(b, 'en'),
+    );
+}
+
+/**
  * Format an ISO-8601 date as a human-readable posted date,
  * e.g. "January 5, 2027". Falls back to the raw value if unparseable.
  */
