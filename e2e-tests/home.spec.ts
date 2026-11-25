@@ -40,6 +40,13 @@ function readExpectedDepartments(): {
 
 const expected = readExpectedDepartments();
 
+/** A Department filter option's text: its name and open role count. */
+function departmentLabel(department: string): string {
+    return `${department} (${expected.countFor(department)})`;
+}
+
+const allDepartmentsLabel = `All departments (${expectedRoleCount})`;
+
 function countLine(visible: number, department: string | null): string {
     const noun = visible === 1 ? 'open role' : 'open roles';
     return department === null ? `${visible} ${noun}` : `${visible} ${noun} in ${department}`;
@@ -98,11 +105,45 @@ test.describe('Department filter', () => {
         await expect(filter).toBeVisible();
         await expect(filter).toHaveAttribute('data-testid', 'department-filter');
         await expect(filter).toHaveValue('');
+        expect(
+            await filter.locator('option').evaluateAll((els) =>
+                els.map((el) => (el as HTMLOptionElement).value),
+            ),
+        ).toEqual(['', ...expected.departments]);
         await expect(filter.locator('option')).toHaveText([
-            'All departments',
-            ...expected.departments,
+            allDepartmentsLabel,
+            ...expected.departments.map(departmentLabel),
         ]);
-        await expect(filter.locator('option:checked')).toHaveText('All departments');
+        await expect(filter.locator('option:checked')).toHaveText(allDepartmentsLabel);
+    });
+
+    test('[ac_01a21067-975c-7907-bff5-5f554528d28d] each Department option reads its name and open role count, such as Finance (2)', async ({ page }) => {
+        await page.goto('/');
+        const filter = page.getByTestId('department-filter');
+        await expect(filter).toBeVisible();
+        expect(expected.countFor('Finance')).toBe(2);
+        await expect(filter.locator('option[value="Finance"]')).toHaveText('Finance (2)');
+        for (const department of expected.departments) {
+            const option = filter.locator(`option[value="${department.replace(/"/g, '\\"')}"]`);
+            await expect(option).toHaveText(`${department} (${expected.countFor(department)})`);
+        }
+
+        // Choosing a Department still filters by its name.
+        await filter.selectOption('Finance');
+        await expect(filter.locator('option:checked')).toHaveText('Finance (2)');
+        await expect(page.getByTestId('role-card').filter({ visible: true })).toHaveCount(2);
+    });
+
+    test('[ac_01a21067-975c-7740-89e0-b0e85652d339] All departments reads the total count of open roles', async ({ page }) => {
+        await page.goto('/');
+        const filter = page.getByTestId('department-filter');
+        await expect(filter).toBeVisible();
+        const total = expected.departments.reduce((sum, d) => sum + expected.countFor(d), 0);
+        expect(total).toBe(expectedRoleCount);
+        await expect(filter.locator('option[value=""]')).toHaveText(
+            `All departments (${expectedRoleCount})`,
+        );
+        await expect(page.getByTestId('role-card')).toHaveCount(expectedRoleCount);
     });
 
     test('[ac_01a1eb3e-2f2a-7105-8fe0-0f4ec69c1912] shows only the chosen Department, newest first, without reloading', async ({ page }) => {
@@ -160,7 +201,7 @@ test.describe('Department filter', () => {
         await filter.selectOption(department);
         await expect(cards.filter({ visible: true })).toHaveCount(expected.countFor(department));
 
-        await filter.selectOption({ label: 'All departments' });
+        await filter.selectOption({ label: allDepartmentsLabel });
         await expect(filter).toHaveValue('');
         await expect(cards.filter({ visible: true })).toHaveCount(expectedRoleCount);
         for (let index = 0; index < expectedRoleCount; index++) {
@@ -286,7 +327,7 @@ test.describe('Department in the address', () => {
             });
         }
 
-        await filter.selectOption({ label: 'All departments' });
+        await filter.selectOption({ label: allDepartmentsLabel });
         await expectListingShows(page, null);
         expect(departmentParam(page)).toBeNull();
     });
@@ -310,7 +351,7 @@ test.describe('Department in the address', () => {
         await page.goto(listingUrl('Finance'));
         await expect(
             page.getByTestId('department-filter').locator('option:checked'),
-        ).toHaveText('Finance');
+        ).toHaveText(departmentLabel('Finance'));
         await expectListingShows(page, 'Finance');
         expect(departmentParam(page)).toBe('Finance');
     });
@@ -359,7 +400,7 @@ test.describe('Department in the address', () => {
             await page.goto(`/${query}`);
             await expect(
                 page.getByTestId('department-filter').locator('option:checked'),
-            ).toHaveText('All departments');
+            ).toHaveText(allDepartmentsLabel);
             await expectListingShows(page, null);
             const cards = page.getByTestId('role-card');
             for (let index = 0; index < expectedRoleCount; index++) {

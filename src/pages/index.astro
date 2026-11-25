@@ -3,7 +3,7 @@ import { getCollection } from 'astro:content';
 import Layout from '../layouts/Layout.astro';
 import RoleCard from '../components/RoleCard.astro';
 import EmptyState from '../components/EmptyState.astro';
-import { listDepartments, sortByNewest } from '../lib/jobs';
+import { formatFilterOption, listDepartmentCounts, sortByNewest } from '../lib/jobs';
 import type { Job } from '../types/job';
 
 export const prerender = true;
@@ -12,7 +12,7 @@ const entries = await getCollection('jobs');
 const jobs: Job[] = sortByNewest(
     entries.map((entry) => ({ slug: entry.id, ...entry.data })),
 );
-const departments = listDepartments(jobs);
+const departments = listDepartmentCounts(jobs);
 ---
 
 <Layout title="Caldova Careers — Open roles">
@@ -42,9 +42,9 @@ const departments = listDepartments(jobs);
             data-testid="department-filter"
             class="rounded-lg bg-slate-900 border border-slate-700 text-slate-100 p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
           >
-            <option value="" selected>All departments</option>
-            {departments.map((department) => (
-              <option value={department}>{department}</option>
+            <option value="" selected>{formatFilterOption('All departments', jobs.length)}</option>
+            {departments.map(({ department, count }) => (
+              <option value={department}>{formatFilterOption(department, count)}</option>
             ))}
           </select>
         </div>
