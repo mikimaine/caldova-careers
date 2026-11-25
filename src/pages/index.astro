@@ -89,12 +89,48 @@ const departments = listDepartments(jobs);
               count.textContent = formatCount(visible, department);
             };
 
+            // The rendered Departments; an address value must match one exactly.
+            const known = new Set(
+              Array.from(select.options, (option) => option.value).filter((value) => value !== ''),
+            );
+
+            // The address is the source of truth (AD-3): a missing, empty,
+            // unknown or differently-cased value means All departments.
+            const readDepartment = () => {
+              const value = new URLSearchParams(location.search).get('department');
+              return value !== null && known.has(value) ? value : null;
+            };
+
+            // Replace (never push) the history entry so choosing adds no entries.
+            const writeDepartment = (department) => {
+              const params = new URLSearchParams(location.search);
+              if (department === null) {
+                params.delete('department');
+              } else {
+                params.set('department', department);
+              }
+              const query = params.toString();
+              history.replaceState(
+                history.state,
+                '',
+                `${location.pathname}${query ? `?${query}` : ''}${location.hash}`,
+              );
+            };
+
             wrapper.hidden = false;
             count.hidden = false;
-            apply(null);
+            apply(readDepartment());
 
             select.addEventListener('change', () => {
-              apply(select.value === '' ? null : select.value);
+              const department = select.value === '' ? null : select.value;
+              writeDepartment(department);
+              apply(department);
+            });
+
+            // A back/forward-cache restore may bring back a select value that
+            // disagrees with the address; re-apply from the address.
+            window.addEventListener('pageshow', (event) => {
+              if (event.persisted) apply(readDepartment());
             });
           })();
         </script>

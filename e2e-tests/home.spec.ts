@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -239,5 +239,193 @@ test.describe('Department filter', () => {
                 .analyze();
             expect(results.violations).toEqual([]);
         });
+    });
+});
+
+/** The address's department query parameter, read only through searchParams. */
+function departmentParam(page: Page): string | null {
+    return new URL(page.url()).searchParams.get('department');
+}
+
+function listingUrl(department: string): string {
+    return `/?${new URLSearchParams({ department }).toString()}`;
+}
+
+/**
+ * Assert the filter, the visible Role cards and the count line all show
+ * `department` (`null` means All departments).
+ */
+async function expectListingShows(page: Page, department: string | null) {
+    const filter = page.getByTestId('department-filter');
+    const visibleCards = page.getByTestId('role-card').filter({ visible: true });
+    const visible = department === null ? expectedRoleCount : expected.countFor(department);
+
+    await expect(filter).toHaveValue(department ?? '');
+    await expect(visibleCards).toHaveCount(visible);
+    await expect(page.getByTestId('roles-count')).toHaveText(countLine(visible, department));
+    if (department !== null) {
+        const shown = await visibleCards.evaluateAll((els) =>
+            els.map((el) => el.getAttribute('data-department')),
+        );
+        expect(shown).toEqual(Array<string>(visible).fill(department));
+    }
+}
+
+test.describe('Department in the address', () => {
+    test('[ac_01a1eb6f-5e98-7b36-8c9b-5d8581eeac08] choosing a Department sets the department parameter exactly; All departments removes it', async ({ page }) => {
+        expect(expected.departments).toContain('Research & Development');
+        await page.goto('/');
+        expect(departmentParam(page)).toBeNull();
+        const filter = page.getByTestId('department-filter');
+
+        for (const department of expected.departments) {
+            await test.step(`choose ${department}`, async () => {
+                await filter.selectOption(department);
+                await expectListingShows(page, department);
+                expect(departmentParam(page)).toBe(department);
+            });
+        }
+
+        await filter.selectOption({ label: 'All departments' });
+        await expectListingShows(page, null);
+        expect(departmentParam(page)).toBeNull();
+    });
+
+    test('[ac_01a1eb6f-5e98-723a-bf86-882e7f68eadc] Back leaves the listing after several choices', async ({ page }) => {
+        await page.goto('/about');
+        await page.goto('/');
+        const filter = page.getByTestId('department-filter');
+        for (const department of [...expected.departments.slice(0, 3), '', 'Research & Development']) {
+            await filter.selectOption(department);
+            await expectListingShows(page, department === '' ? null : department);
+        }
+        expect(departmentParam(page)).toBe('Research & Development');
+
+        await page.goBack();
+        await expect(page).toHaveURL(/\/about$/);
+        await expect(page.getByRole('heading', { name: 'About Caldova' })).toBeVisible();
+    });
+
+    test('[ac_01a1eb6f-5e98-70fa-9d36-77e472517fc7] ?department=Finance loads filtered to Finance', async ({ page }) => {
+        await page.goto(listingUrl('Finance'));
+        await expect(
+            page.getByTestId('department-filter').locator('option:checked'),
+        ).toHaveText('Finance');
+        await expectListingShows(page, 'Finance');
+        expect(departmentParam(page)).toBe('Finance');
+    });
+
+    test('[ac_01a1eb6f-5e98-70fa-9d36-77e472517fc7] no non-Finance card is visible when DOMContentLoaded fires', async ({ page }) => {
+        await page.addInitScript(() => {
+            document.addEventListener('DOMContentLoaded', () => {
+                (window as unknown as { atDomContentLoaded?: unknown }).atDomContentLoaded =
+                    Array.from(
+                        document.querySelectorAll<HTMLElement>('[data-testid="role-card"]'),
+                        (el) => ({
+                            department: el.dataset.department,
+                            visible: el.checkVisibility(),
+                        }),
+                    );
+            });
+        });
+        await page.goto(listingUrl('Finance'), { waitUntil: 'domcontentloaded' });
+
+        const snapshot = (await page.evaluate(
+            () => (window as unknown as { atDomContentLoaded?: unknown }).atDomContentLoaded,
+        )) as { department: string; visible: boolean }[];
+        expect(snapshot).toHaveLength(expectedRoleCount);
+        for (const card of snapshot) {
+            expect(card.visible, `${card.department} card at DOMContentLoaded`).toBe(
+                card.department === 'Finance',
+            );
+        }
+
+        const nonFinanceCount = expectedRoleCount - expected.countFor('Finance');
+        const nonFinance = page.locator(
+            '[data-testid="role-card"]:not([data-department="Finance"])',
+        );
+        await expect(nonFinance).toHaveCount(nonFinanceCount);
+        for (let index = 0; index < nonFinanceCount; index++) {
+            await expect(nonFinance.nth(index)).toBeHidden();
+        }
+    });
+
+    for (const [label, query] of [
+        ['empty', '?department='],
+        ['unknown', '?department=Astrology'],
+        ['differs only in case', '?department=finance'],
+    ] as const) {
+        test(`[ac_01a1eb6f-5e98-7961-8ecc-b43aae52dec8] ${label} department shows All departments`, async ({ page }) => {
+            await page.goto(`/${query}`);
+            await expect(
+                page.getByTestId('department-filter').locator('option:checked'),
+            ).toHaveText('All departments');
+            await expectListingShows(page, null);
+            const cards = page.getByTestId('role-card');
+            for (let index = 0; index < expectedRoleCount; index++) {
+                await expect(cards.nth(index)).toBeVisible();
+            }
+        });
+    }
+
+    test('[ac_01a1eb6f-5e98-7008-b90a-9af07a05bb16] reload keeps filter, cards and address in agreement', async ({ page }) => {
+        await page.goto('/');
+        await page.getByTestId('department-filter').selectOption('Research & Development');
+        await expectListingShows(page, 'Research & Development');
+
+        await page.reload();
+        expect(departmentParam(page)).toBe('Research & Development');
+        await expectListingShows(page, 'Research & Development');
+    });
+
+    test('[ac_01a1eb6f-5e98-7008-b90a-9af07a05bb16] opening a role and coming Back keeps filter, cards and address in agreement', async ({ page }) => {
+        await page.goto('/');
+        await page.getByTestId('department-filter').selectOption('Finance');
+        await expectListingShows(page, 'Finance');
+
+        const card = page.getByTestId('role-card').filter({ visible: true }).first();
+        const title = (await card.getByTestId('role-title').textContent())!.trim();
+        await card.click();
+        await expect(page.getByTestId('role-detail-title')).toHaveText(title);
+
+        await page.goBack();
+        expect(departmentParam(page)).toBe('Finance');
+        await expectListingShows(page, 'Finance');
+    });
+
+    test('[ac_01a1eb6f-5e98-7008-b90a-9af07a05bb16] a back/forward-cache restore re-applies the address over a restored select value', async ({ page }) => {
+        await page.goto(listingUrl('Finance'));
+        await expectListingShows(page, 'Finance');
+
+        // Simulate the browser restoring a different value into the select,
+        // followed by a persisted pageshow (back/forward-cache restore).
+        await page.evaluate(() => {
+            const select = document.querySelector<HTMLSelectElement>(
+                '[data-testid="department-filter"]',
+            )!;
+            select.value = 'Sales';
+            window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+        });
+
+        expect(departmentParam(page)).toBe('Finance');
+        await expectListingShows(page, 'Finance');
+    });
+
+    test('[ac_01a1eb6f-5e98-71de-a41f-d0fd2607566a] without JavaScript ?department=Finance shows every card and no filter or count', async ({ browser }) => {
+        const context = await browser.newContext({ javaScriptEnabled: false });
+        try {
+            const page = await context.newPage();
+            await page.goto(listingUrl('Finance'));
+            const cards = page.getByTestId('role-card');
+            await expect(cards).toHaveCount(expectedRoleCount);
+            for (let index = 0; index < expectedRoleCount; index++) {
+                await expect(cards.nth(index)).toBeVisible();
+            }
+            await expect(page.getByTestId('department-filter')).toBeHidden();
+            await expect(page.locator('label[for="department-filter"]')).toBeHidden();
+            await expect(page.getByTestId('roles-count')).toBeHidden();
+        } finally {
+            await context.close();
+        }
     });
 });
